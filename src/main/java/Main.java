@@ -1,12 +1,24 @@
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Main {
 
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, InterruptedException {
 
-        DropBoxClient client = new DropBoxClient("przemek");
-        client.runClient();
+        List<DropBoxClient> listOfClients = new ArrayList<>();
+
+        listOfClients.add(new DropBoxClient("przemek"));
+        listOfClients.add(new DropBoxClient("zenek"));
+
+        listOfClients.forEach(client -> new Thread(() -> {
+            try {
+                client.runClient();
+            } catch (IOException | InterruptedException e) {
+                e.printStackTrace();
+            }
+        }).start());
 
     }
 }
