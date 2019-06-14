@@ -9,9 +9,11 @@ public class Main {
 
         List<DropBoxClient> listOfClients = new ArrayList<>();
 
-        listOfClients.add(new DropBoxClient("przemek"));
-//        listOfClients.add(new DropBoxClient("adam123"));
-//        listOfClients.add(new DropBoxClient("adam"));
+        listOfClients.add(new DropBoxClient("Przemek"));
+        listOfClients.add(new DropBoxClient("Ola"));
+        listOfClients.add(new DropBoxClient("Adam"));
+        listOfClients.add(new DropBoxClient("Michal"));
+        listOfClients.add(new DropBoxClient("Krzysiek"));
 
         listOfClients.forEach(client -> new Thread(() -> {
             try {

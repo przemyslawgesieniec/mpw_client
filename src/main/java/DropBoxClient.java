@@ -67,7 +67,6 @@ public class DropBoxClient {
 
     private void uploadNewFiles() throws IOException {
 
-        System.out.println("scan for new files in local directory");
         final List<File> allFilesFromLocalDirectory = getAllFilesFromLocalDirectoryExceptCsv();
         final List<File> files = filesToUpload(allFilesFromLocalDirectory);
 
@@ -76,13 +75,10 @@ public class DropBoxClient {
             final String uploadResponse = new HttpConnector("http://localhost:8080").htttPostFile(files, clientName);
             final List<String> remotelyUploadedFiles = getList(uploadResponse, String.class);
             final Map<String, String> remoteAndLocalFilesNames = remotelyStoredFilesNamesToMap(remotelyUploadedFiles);
-            remoteAndLocalFilesNames.forEach((remote,local) -> {
+            remoteAndLocalFilesNames.forEach((remote, local) -> {
                 System.out.println(clientName + " has uploaded file: " + local);
-                updateCsvFile(local,remote);
+                updateCsvFile(local, remote);
             });
-
-        } else {
-            System.out.println("no new files detected");
 
         }
     }
@@ -102,6 +98,7 @@ public class DropBoxClient {
                     final List<UserFileData> downloadResponse = parseDownloadResponse(response);
                     downloadResponse.forEach(d -> {
                         saveFile(d.getOriginalFileName(), d.getServerFileName(), d.getContent());
+                        System.out.println(clientName + ": file " + d.getOriginalFileName() + " downloaded");
                         downloadedFilesData.add(d.getServerFileName());
                     });
                     Thread.sleep(1000); //todo to remove
@@ -203,7 +200,7 @@ public class DropBoxClient {
         return collect;
     }
 
-    private Map<String, String> remotelyStoredFilesNamesToMap(final List<String> remoteFilesNames){
+    private Map<String, String> remotelyStoredFilesNamesToMap(final List<String> remoteFilesNames) {
         final int prefixLength = UUID.randomUUID().toString().length();
         return remoteFilesNames
                 .stream()
@@ -236,6 +233,7 @@ public class DropBoxClient {
 
             final List<String> collect = stream
                     .map(DropBoxClient::getFileName)
+                    .distinct()
                     .collect(Collectors.toList());
 
             localFileNamesUploadedOnServer.addAll(collect);
