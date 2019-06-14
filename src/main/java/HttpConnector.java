@@ -1,22 +1,15 @@
 import org.apache.http.NameValuePair;
-import org.apache.http.message.BasicNameValuePair;
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.ProtocolException;
 import java.net.URL;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 public class HttpConnector {
 
-//    private HttpURLConnection connection;
+    //    private HttpURLConnection connection;
     private String serverUrl;
 
     public HttpConnector(String serverUrl) {
@@ -30,7 +23,7 @@ public class HttpConnector {
 
         if (!params.isEmpty()) {
             final String requestParams = formatRequestParams(params);
-            endpoint += requestParams.replaceAll(" ","%20");
+            endpoint += requestParams.replaceAll(" ", "%20");
         }
 
         URL url = new URL(endpoint);

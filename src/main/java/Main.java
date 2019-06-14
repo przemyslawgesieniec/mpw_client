@@ -10,14 +10,14 @@ public class Main {
         List<DropBoxClient> listOfClients = new ArrayList<>();
 
         listOfClients.add(new DropBoxClient("przemek"));
-        listOfClients.add(new DropBoxClient("zenek"));
+//        listOfClients.add(new DropBoxClient("adam123"));
+//        listOfClients.add(new DropBoxClient("adam"));
 
         listOfClients.forEach(client -> new Thread(() -> {
             try {
                 client.runClient();
             } catch (IOException | InterruptedException e) {
-                e.printStackTrace();
-            }
+                System.out.println("ServerUnavailable");            }
         }).start());
 
     }

@@ -15,7 +15,10 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -23,8 +26,6 @@ public class DropBoxClient {
 
     private String clientName;
     private String localDirectoryName;
-    private HttpConnector httpConnector;
-
 
     private String ROOT_DIRECTORY_PATH = "src/main/resources/usersLocalDirectories";
     private String USER_DIRECTORY_PATH;
@@ -40,17 +41,20 @@ public class DropBoxClient {
 
         USER_DIRECTORY_PATH = ROOT_DIRECTORY_PATH + "/" + localDirectoryName;
         USER_CSV_FILE_PATH = USER_DIRECTORY_PATH + "/c.csv";
-        httpConnector = new HttpConnector("http://localhost:8080");
     }
 
     public void runClient() throws IOException, InterruptedException {
 
         initializeDirectoryIfNecessary();
 
-        final List<String> remoteStoredFilesName = getRemoteStoredFilesName();
+        final Map<String, String> remoteStoredServerAndLocalFilesName = getRemoteStoredFilesName();
         final List<File> allFilesFromLocalDirectory = getAllFilesFromLocalDirectory();
+        final List<String> allFilesNamesFromLocalDirectory = allFilesFromLocalDirectory
+                .stream()
+                .map(File::getName)
+                .collect(Collectors.toList());
 
-        final List<String> filesToDownload = filesToDownload(remoteStoredFilesName, allFilesFromLocalDirectory);
+        final List<String> filesToDownload = filesToDownload(remoteStoredServerAndLocalFilesName, allFilesNamesFromLocalDirectory);
 
         final boolean isRequested = requestDownloadingMissingFiles(filesToDownload);
 
@@ -63,7 +67,7 @@ public class DropBoxClient {
         }
 
     }
-.
+
     private void uploadNewFiles() throws IOException {
 
         final List<File> allFilesFromLocalDirectory = getAllFilesFromLocalDirectory();
@@ -87,10 +91,10 @@ public class DropBoxClient {
 
                 params.add(new BasicNameValuePair("filesNames", filedToDownloadComaSeparated));
                 try {
-                    final String response = httpConnector.httpGet(DOWNLOAD, params);
+                    final String response = new HttpConnector("http://localhost:8080").httpGet(DOWNLOAD, params);
                     final List<UserFileData> downloadResponse = parseDownloadResponse(response);
                     downloadResponse.forEach(d -> {
-                        saveFile(d.getOriginalFileName(),d.getServerFileName(), d.getContent());
+                        saveFile(d.getOriginalFileName(), d.getServerFileName(), d.getContent());
                         downloadedFilesData.add(d.getServerFileName());
                     });
                     Thread.sleep(1000); //todo to remove
@@ -109,30 +113,28 @@ public class DropBoxClient {
         params.add(new BasicNameValuePair("user", clientName));
         params.add(new BasicNameValuePair("filesNames", filedToDownloadComaSeparated));
 
-        final String response = httpConnector.httpGet(REQUEST_DOWNLOAD, params);
+        final String response = new HttpConnector("http://localhost:8080").httpGet(REQUEST_DOWNLOAD, params);
         return response.equals("processing");
     }
 
-    private List<String> filesToDownload(List<String> remoteStoredFilesName, List<File> allFilesFromLocalDirectory) {
+    private List<String> filesToDownload(Map<String, String> remoteStoredServerAndLocalFilesName, List<String> allFilesFromLocalDirectory) {
 
-        final List<String> allFilesFromLocalDirectoryNames = allFilesFromLocalDirectory
+        return remoteStoredServerAndLocalFilesName
+                .entrySet()
                 .stream()
-                .map(File::getName)
-                .collect(Collectors.toList());
-
-        return remoteStoredFilesName
-                .stream()
-                .filter(f -> !allFilesFromLocalDirectoryNames.contains(f))
+                .filter(f -> !allFilesFromLocalDirectory.contains(f.getValue()))
+                .map(Map.Entry::getKey)
                 .collect(Collectors.toList());
     }
 
-    private List<String> getRemoteStoredFilesName() throws IOException {
+    private Map<String, String> getRemoteStoredFilesName() throws IOException {
 
         List<NameValuePair> params = new ArrayList<>();
         params.add(new BasicNameValuePair("user", clientName));
-        final String s = httpConnector.httpGet(SYNC, params);
-        System.out.println(s);
-        return Arrays.asList(formatResponseString(s).split(","));
+        final String s = new HttpConnector("http://localhost:8080").httpGet(SYNC, params);
+        final Map<String, String> localAndRemoteFileName = parseSyncResponse(s);
+        localAndRemoteFileName.forEach((k, v) -> System.out.println(clientName + ": " + v));
+        return localAndRemoteFileName;
     }
 
     private List<File> getAllFilesFromLocalDirectory() {
@@ -153,6 +155,7 @@ public class DropBoxClient {
                 e.printStackTrace();
             }
         }
+        System.out.println(clientName + ": Local directory created");
     }
 
     private void createCsvFile() throws IOException {
@@ -171,16 +174,6 @@ public class DropBoxClient {
                 .collect(Collectors.toList());
     }
 
-    private String formatResponseString(final String responseString) {
-        return responseString
-                .replaceAll("\"", "")
-                .replaceAll("\\[", "")
-                .replaceAll("]", "")
-                .replaceAll("\\n", "")
-                .replaceAll("\\r", "");
-
-    }
-
     private void saveFile(String originalFileName, final String serverFileName, final String fileContent) {
 
         Path filepath = Paths.get(USER_DIRECTORY_PATH + "/" + originalFileName);
@@ -192,7 +185,16 @@ public class DropBoxClient {
             e.printStackTrace();
         }
 
-        updateCsvFile(originalFileName,serverFileName);
+        updateCsvFile(originalFileName, serverFileName);
+    }
+
+    private Map<String, String> parseSyncResponse(final String response) {
+        final int prefixLength = UUID.randomUUID().toString().length();
+        final List<String> remotelyStoredFileNames = getList(response, String.class);
+        final Map<String, String> collect = remotelyStoredFileNames
+                .stream()
+                .collect(Collectors.toMap(k -> k, v -> v.substring(prefixLength)));
+        return collect;
     }
 
     private List<UserFileData> parseDownloadResponse(final String response) {
@@ -213,20 +215,20 @@ public class DropBoxClient {
         }
     }
 
-    private synchronized List<String> getAllUploadedFilesNameFormCsv(){
+    private synchronized List<String> getAllUploadedFilesNameFormCsv() {
 
         final List<String> localFileNamesUploadedOnServer = new ArrayList<>();
 
-            try (Stream<String> stream = Files.lines(Paths.get(USER_CSV_FILE_PATH))) {
+        try (Stream<String> stream = Files.lines(Paths.get(USER_CSV_FILE_PATH))) {
 
-                final List<String> collect = stream
-                        .map(DropBoxClient::getFileName)
-                        .collect(Collectors.toList());
+            final List<String> collect = stream
+                    .map(DropBoxClient::getFileName)
+                    .collect(Collectors.toList());
 
-                localFileNamesUploadedOnServer.addAll(collect);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            localFileNamesUploadedOnServer.addAll(collect);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
         return localFileNamesUploadedOnServer;
     }
