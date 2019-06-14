@@ -17,7 +17,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -48,7 +47,7 @@ public class DropBoxClient {
         initializeDirectoryIfNecessary();
 
         final Map<String, String> remoteStoredServerAndLocalFilesName = getRemoteStoredFilesName();
-        final List<File> allFilesFromLocalDirectory = getAllFilesFromLocalDirectory();
+        final List<File> allFilesFromLocalDirectory = getAllFilesFromLocalDirectoryExceptCsv();
         final List<String> allFilesNamesFromLocalDirectory = allFilesFromLocalDirectory
                 .stream()
                 .map(File::getName)
@@ -56,28 +55,36 @@ public class DropBoxClient {
 
         final List<String> filesToDownload = filesToDownload(remoteStoredServerAndLocalFilesName, allFilesNamesFromLocalDirectory);
 
-        final boolean isRequested = requestDownloadingMissingFiles(filesToDownload);
-
+        requestDownloadingMissingFiles(filesToDownload);
         downloadAllMissingFilesAsync(filesToDownload);
 
 
         while (true) {
             Thread.sleep(5000);
-//            uploadNewFiles();
+            uploadNewFiles();
         }
-
     }
 
     private void uploadNewFiles() throws IOException {
 
-        final List<File> allFilesFromLocalDirectory = getAllFilesFromLocalDirectory();
+        System.out.println("scan for new files in local directory");
+        final List<File> allFilesFromLocalDirectory = getAllFilesFromLocalDirectoryExceptCsv();
         final List<File> files = filesToUpload(allFilesFromLocalDirectory);
 
-//        httpConnector.httpPost();
+        if (files.size() > 0) {
+            files.forEach(e -> System.out.println(e.getName() + " ready to upload"));
+            final String uploadResponse = new HttpConnector("http://localhost:8080").htttPostFile(files, clientName);
+            final List<String> remotelyUploadedFiles = getList(uploadResponse, String.class);
+            final Map<String, String> remoteAndLocalFilesNames = remotelyStoredFilesNamesToMap(remotelyUploadedFiles);
+            remoteAndLocalFilesNames.forEach((remote,local) -> {
+                System.out.println(clientName + " has uploaded file: " + local);
+                updateCsvFile(local,remote);
+            });
 
+        } else {
+            System.out.println("no new files detected");
 
-        //todo get feedback from server if file was uploaded!!!!!
-
+        }
     }
 
     private void downloadAllMissingFilesAsync(final List<String> filesToDownload) {
@@ -137,11 +144,12 @@ public class DropBoxClient {
         return localAndRemoteFileName;
     }
 
-    private List<File> getAllFilesFromLocalDirectory() {
+    private List<File> getAllFilesFromLocalDirectoryExceptCsv() {
 
         File directory = new File(USER_DIRECTORY_PATH);
-        return Stream.of(Objects.requireNonNull(directory.listFiles()))
+        final List<File> collect = Stream.of(Objects.requireNonNull(directory.listFiles()))
                 .collect(Collectors.toList());
+        return collect.stream().filter(e -> !e.getName().equals("c.csv")).collect(Collectors.toList());
     }
 
     private void initializeDirectoryIfNecessary() {
@@ -189,12 +197,17 @@ public class DropBoxClient {
     }
 
     private Map<String, String> parseSyncResponse(final String response) {
-        final int prefixLength = UUID.randomUUID().toString().length();
+
         final List<String> remotelyStoredFileNames = getList(response, String.class);
-        final Map<String, String> collect = remotelyStoredFileNames
+        final Map<String, String> collect = remotelyStoredFilesNamesToMap(remotelyStoredFileNames);
+        return collect;
+    }
+
+    private Map<String, String> remotelyStoredFilesNamesToMap(final List<String> remoteFilesNames){
+        final int prefixLength = UUID.randomUUID().toString().length();
+        return remoteFilesNames
                 .stream()
                 .collect(Collectors.toMap(k -> k, v -> v.substring(prefixLength)));
-        return collect;
     }
 
     private List<UserFileData> parseDownloadResponse(final String response) {
