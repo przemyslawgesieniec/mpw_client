@@ -1,4 +1,5 @@
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -7,19 +8,20 @@ public class Main {
 
     public static void main(String[] args) throws IOException, InterruptedException {
 
-        List<DropBoxClient> listOfClients = new ArrayList<>();
+        List<MpwClient> listOfClients = new ArrayList<>();
 
-        listOfClients.add(new DropBoxClient("Przemek"));
-        listOfClients.add(new DropBoxClient("Ola"));
-        listOfClients.add(new DropBoxClient("Adam"));
-        listOfClients.add(new DropBoxClient("Michal"));
-        listOfClients.add(new DropBoxClient("Krzysiek"));
+        listOfClients.add(new MpwClient("Przemek"));
+        listOfClients.add(new MpwClient("Ola"));
+        listOfClients.add(new MpwClient("Adam"));
+        listOfClients.add(new MpwClient("Michal"));
+        listOfClients.add(new MpwClient("Krzysiek"));
 
         listOfClients.forEach(client -> new Thread(() -> {
             try {
-                client.runClient();
-            } catch (IOException | InterruptedException e) {
-                System.out.println("ServerUnavailable");            }
+                client.start();
+            } catch (IOException | InterruptedException | URISyntaxException e) {
+                System.out.println("ServerUnavailable");
+            }
         }).start());
 
     }

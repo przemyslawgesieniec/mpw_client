@@ -15,12 +15,46 @@ import java.net.URL;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class HttpConnector {
+public class HttpClientAdapter {
 
     private String serverUrl;
 
-    public HttpConnector(String serverUrl) {
+    public HttpClientAdapter(String serverUrl) {
         this.serverUrl = serverUrl;
+    }
+
+    public String httpPostFile(final String serverEndpoint, List<File> files, String user) throws IOException {
+
+        CloseableHttpClient client = HttpClients.createDefault();
+        HttpPost httpPost = new HttpPost(serverUrl + "/" + serverEndpoint);
+
+        MultipartEntityBuilder builder = MultipartEntityBuilder.create();
+        builder.addTextBody("user", user);
+        files.forEach(e -> builder.addBinaryBody("files", e, ContentType.APPLICATION_OCTET_STREAM, e.getName()));
+
+        HttpEntity multipart = builder.build();
+        httpPost.setEntity(multipart);
+
+        CloseableHttpResponse response = client.execute(httpPost);
+
+        StringBuilder content;
+
+        try (BufferedReader in = new BufferedReader(
+                new InputStreamReader(response.getEntity().getContent()))) {
+
+            String line;
+            content = new StringBuilder();
+
+            while ((line = in.readLine()) != null) {
+                content.append(line);
+                content.append(System.lineSeparator());
+            }
+        } finally {
+            client.close();
+        }
+
+        return content.toString();
+
     }
 
     public String httpGet(final String serverEndpoint, List<NameValuePair> params) throws IOException {
@@ -62,45 +96,10 @@ public class HttpConnector {
 
     }
 
-    public String htttPostFile(List<File> files, String user) throws IOException {
-
-        CloseableHttpClient client = HttpClients.createDefault();
-        HttpPost httpPost = new HttpPost(serverUrl + "/files/upload");
-
-        MultipartEntityBuilder builder = MultipartEntityBuilder.create();
-        builder.addTextBody("user", user);
-        files.forEach(e -> builder.addBinaryBody("files", e, ContentType.APPLICATION_OCTET_STREAM, e.getName()));
-
-        HttpEntity multipart = builder.build();
-        httpPost.setEntity(multipart);
-
-        CloseableHttpResponse response = client.execute(httpPost);
-
-        StringBuilder content;
-
-        try (BufferedReader in = new BufferedReader(
-                new InputStreamReader(response.getEntity().getContent()))) {
-
-            String line;
-            content = new StringBuilder();
-
-            while ((line = in.readLine()) != null) {
-                content.append(line);
-                content.append(System.lineSeparator());
-            }
-        }
-        client.close();
-
-        return content.toString();
-
-    }
-
     private String formatRequestParams(List<NameValuePair> params) {
         return "?" + params
                 .stream()
                 .map(e -> e.getName() + "=" + e.getValue())
                 .collect(Collectors.joining("&"));
     }
-
-
 }
